@@ -1,4 +1,3 @@
-import ca.uhn.fhir.rest.client.interceptor.LoggingInterceptor;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -19,7 +18,7 @@ public class SampleClientTest {
 
     @Before
     public void setUp(){
-        Logger testLogger = (Logger) LoggerFactory.getLogger(LoggingInterceptor.class);
+        Logger testLogger = (Logger) LoggerFactory.getLogger(SampleClient.class);
         listAppender = new ListAppender<>();
         listAppender.start();
 
@@ -28,15 +27,17 @@ public class SampleClientTest {
     }
 
     @Test
-    public void main_should_call_client_20times() throws IOException, URISyntaxException {
+    public void main_should_log_avgResponseTime() throws IOException, URISyntaxException {
         SampleClient.main(new String[0]);
 
-        List<ILoggingEvent> listEvents = listAppender.list
+        List<Integer> avgResponseTimeList = listAppender.list
                 .stream()
-                .filter(event -> event.getFormattedMessage().startsWith("Client request: GET http://hapi.fhir.org/baseR4/Patient?family="))
+                .filter(event -> event.getFormattedMessage().startsWith("Average response time :"))
+                .map(event -> Integer.valueOf(event.getFormattedMessage().split(":")[1].trim()))
                 .collect(Collectors.toList());
 
-        assertThat(listEvents.size()).isEqualTo(20);
+        assertThat(avgResponseTimeList.size()).isEqualTo(1);
+        assertThat(avgResponseTimeList.get(0)).isGreaterThan(0);
     }
 
 }

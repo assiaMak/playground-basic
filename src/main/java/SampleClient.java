@@ -1,6 +1,5 @@
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
-import ca.uhn.fhir.rest.client.interceptor.LoggingInterceptor;
 import ca.uhn.fhir.rest.gclient.ICriterion;
 import ca.uhn.fhir.rest.gclient.StringClientParam;
 import org.hl7.fhir.r4.model.Bundle;
@@ -25,6 +24,11 @@ public class SampleClient {
     public static final String NAMES_FILE = "names.txt";
 
     private IGenericClient client;
+    private final CustomLoggingInterceptor clientInterceptor;
+
+    public SampleClient(){
+        clientInterceptor = new CustomLoggingInterceptor();
+    }
 
     public static void main(String[] theArgs) throws IOException, URISyntaxException {
 
@@ -87,11 +91,16 @@ public class SampleClient {
 
 
     private List<Bundle> getPatients() throws IOException, URISyntaxException {
-        return getNames()
+        clientInterceptor.setResponseTimes(new ArrayList<>());
+
+        List<Bundle> patients = getNames()
                 .map(
                         patientName -> getPatient(Patient.FAMILY.matches().value(patientName.toUpperCase()))
                 )
                 .collect(Collectors.toList());
+
+        logger.info("Average response time : {}", getAvgResponseTimes());
+        return patients;
     }
 
 
@@ -109,9 +118,13 @@ public class SampleClient {
             // Create a FHIR client
             FhirContext fhirContext = FhirContext.forR4();
             client = fhirContext.newRestfulGenericClient("http://hapi.fhir.org/baseR4");
-            client.registerInterceptor(new LoggingInterceptor(false));
+            client.registerInterceptor(clientInterceptor);
         }
         return client;
+    }
+
+    private long getAvgResponseTimes(){
+        return (long) clientInterceptor.getResponseTimes().stream().mapToLong(t -> t).average().orElse(0L);
     }
 
 }
