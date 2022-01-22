@@ -7,7 +7,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,11 +35,41 @@ public class SampleClientTest {
         List<Integer> avgResponseTimeList = listAppender.list
                 .stream()
                 .filter(event -> event.getFormattedMessage().startsWith("Average response time :"))
-                .map(event -> Integer.valueOf(event.getFormattedMessage().split(":")[1].trim()))
+                .map(extractAvgResponseTime())
                 .collect(Collectors.toList());
 
-        assertThat(avgResponseTimeList.size()).isEqualTo(1);
+        assertThat(avgResponseTimeList.size()).isEqualTo(3);
         assertThat(avgResponseTimeList.get(0)).isGreaterThan(0);
+    }
+
+    @Test
+    public void main_second_request_time_should_be_shorter() throws IOException, URISyntaxException {
+        SampleClient.main(new String[0]);
+
+        List<ILoggingEvent> requestTimeEventList = listAppender.list
+                .stream()
+                .filter(event -> event.getFormattedMessage().startsWith("Average response time :"))
+                .collect(Collectors.toList());
+
+        assertThat(getSecondLoopLogMessage(requestTimeEventList).endsWith(getMinRequestTime(requestTimeEventList).toString())).isTrue();
+    }
+
+    private Integer getMinRequestTime(List<ILoggingEvent> requestTimeEventList) {
+        return requestTimeEventList
+                .stream()
+                .map(extractAvgResponseTime())
+                .min(Comparator.comparing(Integer::valueOf))
+                .orElse(null);
+    }
+
+    private String getSecondLoopLogMessage(List<ILoggingEvent> requestTimeEventList) {
+        return requestTimeEventList
+                .get(1)
+                .getFormattedMessage();
+    }
+
+    private Function<ILoggingEvent, Integer> extractAvgResponseTime() {
+        return event -> Integer.valueOf(event.getFormattedMessage().split(":")[1].trim());
     }
 
 }

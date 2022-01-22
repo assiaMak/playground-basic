@@ -1,6 +1,8 @@
 import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.api.CacheControlDirective;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
 import ca.uhn.fhir.rest.gclient.ICriterion;
+import ca.uhn.fhir.rest.gclient.IQuery;
 import ca.uhn.fhir.rest.gclient.StringClientParam;
 import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.HumanName;
@@ -16,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,7 +38,9 @@ public class SampleClient {
         SampleClient sampleClient = new SampleClient();
 
         // Search for Patient resources
-        List<Bundle> responseList = sampleClient.getPatients();
+        List<Bundle> responseList = sampleClient.getPatients(sampleClient.getCachedPatients());
+        responseList.addAll(sampleClient.getPatients(sampleClient.getCachedPatients()));
+        responseList.addAll(sampleClient.getPatients(sampleClient.getNonCachedPatients()));
 
         responseList.stream()
                 .map(Bundle::getEntry)
@@ -79,7 +84,7 @@ public class SampleClient {
 
     private Stream<String> getNames() throws IOException, URISyntaxException {
         Path path = Paths.get(
-                Optional.of(
+                Optional.ofNullable(
                         ClassLoader.getSystemClassLoader().getResource(NAMES_FILE)
                 )
                 .orElseThrow(FileNotFoundException::new)
@@ -90,27 +95,34 @@ public class SampleClient {
     }
 
 
-    private List<Bundle> getPatients() throws IOException, URISyntaxException {
+    private List<Bundle> getPatients(Function<String, Bundle> mapNameToBundle) throws IOException, URISyntaxException {
         clientInterceptor.setResponseTimes(new ArrayList<>());
 
         List<Bundle> patients = getNames()
-                .map(
-                        patientName -> getPatient(Patient.FAMILY.matches().value(patientName.toUpperCase()))
-                )
+                .map(mapNameToBundle)
                 .collect(Collectors.toList());
 
         logger.info("Average response time : {}", getAvgResponseTimes());
         return patients;
     }
 
+    private Function<String, Bundle> getCachedPatients() {
+        return patientName -> getPatient(Patient.FAMILY.matches().value(patientName.toUpperCase()))
+                                .execute();
+    }
 
-    private Bundle getPatient(ICriterion<StringClientParam> criterion) {
+    private Function<String, Bundle> getNonCachedPatients() {
+        return patientName -> getPatient(Patient.FAMILY.matches().value(patientName.toUpperCase()))
+                                .cacheControl(new CacheControlDirective().setNoCache(true))
+                                .execute();
+    }
+
+    private IQuery<Bundle> getPatient(ICriterion<StringClientParam> criterion) {
         return getGenericClient()
                 .search()
                 .forResource("Patient")
                 .where(criterion)
-                .returnBundle(Bundle.class)
-                .execute();
+                .returnBundle(Bundle.class);
     }
 
     private IGenericClient getGenericClient() {
