@@ -8,6 +8,7 @@ import org.hl7.fhir.r4.model.StringType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -35,6 +36,7 @@ public class SampleClient {
                         .filter(Objects::nonNull)
                         .map(entry -> (Patient) entry.getResource())
                         .filter(Objects::nonNull)
+                        .sorted(Comparator.comparing(p -> getFirstName(p).getValue()))
                         .forEach(patient -> logger.info("patient infos : first name : {}, last name : {}, birth date : {}", getFirstName(patient), getLastName(patient), patient.getBirthDate()));
     }
 
@@ -56,7 +58,7 @@ public class SampleClient {
                         .map(HumanName::getGiven)
                         .map(SampleClient::getFirstGivenName)
                 )
-                .orElse(null);
+                .orElse(new StringType(""));
     }
 
     private static StringType getFirstGivenName(List<StringType> givenNames) {
